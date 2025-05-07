@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css'
 import { Icon, LatLng } from "leaflet";
 import greenMarker from '/img/marker-icon-green.png'
 import redMarker from '/img/marker-icon-red.png'
+import blueMarker from '/img/marker-icon-blue.png'
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
 function Home() {
@@ -12,6 +13,15 @@ function Home() {
 
     const greenIcon = new Icon({
         iconUrl: greenMarker,
+        shadowUrl: iconShadow,
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+    });
+
+    const blueIcon = new Icon({
+        iconUrl: blueMarker,
         shadowUrl: iconShadow,
         iconSize: [25, 41],
         iconAnchor: [12, 41],
@@ -40,7 +50,22 @@ function Home() {
 
             if (response.ok) {
                 const jsonData = await response.json();
-                setData(jsonData);
+
+                const map = new Map();
+
+                // Look for duplicate couple of coordinates
+                for (const scan of jsonData) {
+                    const key = `${scan.lat},${scan.lng}`;
+                    if (!map.has(key)) {
+                        map.set(key, []);
+                    }
+                    map.get(key).push(scan);
+                }
+
+                setData(Array.from(map.entries()).map(([key, scans]) => {
+                    const [lat, lng] = key.split(',').map(Number);
+                    return { lat, lng, scans };
+                }));
 
             } else {
                 console.error("Response error", response.status);
@@ -61,7 +86,7 @@ function Home() {
     console.log(data)
 
     return (
-        <div className={`relative w-full px-4 xl:px-0 h-screen`}>
+        <div className={`relative w-full p-0 h-screen`}>
             <div className="relative h-full w-full">
                 <MapContainer
                     className="h-full w-full"
@@ -73,19 +98,35 @@ function Home() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
                     />
-                    {data && data.map(scan =>
-                        <Marker icon={scan.password ? greenIcon : redIcon} position={new LatLng(scan.lat, scan.lng)}>
-                            <Popup>
-                                <strong>Name:</strong> {scan.name}<br />
-                                <strong>Password:</strong> {scan.password ? scan.password : "Not yet cracked/unable to crack"}
-                            </Popup>
-                        </Marker>)
+                    {data && data.map((scans, index) => {
+                        return <Marker key={index} icon={scans.scans.length > 1 ? blueIcon : scans.scans[0].password ? greenIcon : redIcon} position={new LatLng(scans.lat, scans.lng)}>
+                            <Popup>{scans.scans.map((scan, i) => (
+                                <div key={i}>
+                                    <strong>Name:</strong> {scan.name}<br />
+                                    <strong>Password:</strong> {scan.password ?? 'Not yet cracked/unable to crack'}
+                                    {i < scans.scans.length - 1 && <hr className="my-1" />}
+                                </div>
+                            ))}</Popup>
+                        </Marker>
+                    })
                     }
                 </MapContainer>
+                <div className="z-[1500] left-1/2 -translate-x-1/2 w-[calc(100%-16px)] sm:w-fit sm:left-[unset] sm:-translate-x-0 p-4 absolute right-2 top-2 bg-white flex flex-col gap-2">
+                    <div className="flex gap-2">
+                        <img src={greenMarker} alt="green marker" className="w-auto h-8" />
+                        <p>1 item found in marker position, password cracked succesfully</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <img src={redMarker} alt="green marker" className="w-auto h-8" />
+                        <p>1 item found in marker position, password not yet cracked/not cracked succesfully</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <img src={blueMarker} alt="green marker" className="w-auto h-8" />
+                        <p>2+ items found in marker position</p>
+                    </div>
+                </div>
             </div>
-
         </div>
-
     );
 }
 export default Home;
